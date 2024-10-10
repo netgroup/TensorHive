@@ -150,6 +150,7 @@ class SSH:
             return None
 
     AVAILABLE_NODES = hosts_config_to_dict(HOSTS_CONFIG_FILE)
+    print(AVAILABLE_NODES)
     PROXY = proxy_config_to_dict(HOSTS_CONFIG_FILE)
 
 

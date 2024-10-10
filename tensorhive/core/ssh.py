@@ -4,6 +4,7 @@ from pssh.clients.native import ParallelSSHClient
 from pssh.exceptions import AuthenticationException
 from typing import Optional, Dict, Tuple, Generator, List
 from paramiko.rsakey import RSAKey
+from paramiko.ed25519key import Ed25519Key
 from pathlib import PosixPath
 import pssh
 import logging
@@ -137,7 +138,13 @@ def generate_cert(path, replace=False):
 
 def init_ssh_key(path: PosixPath):
     if path.exists():
-        key = RSAKey.from_private_key_file(str(path))
+        ok = True
+        try:
+            key = RSAKey.from_private_key_file(str(path))
+        except Exception as e:
+            ok=False
+        if not ok:
+            key = Ed25519Key.from_private_key_file(str(path))
         log.info('[⚙] Using existing SSH key in {}'.format(path))
     else:
         key = generate_cert(path)

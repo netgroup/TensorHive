@@ -1,5 +1,6 @@
 from tensorhive.config import SSH
 from pssh.clients.native import ParallelSSHClient
+from pssh.config import HostConfig
 from pssh.exceptions import PKeyFileError
 from paramiko.rsakey import RSAKey
 from typing import Dict
@@ -19,12 +20,20 @@ class SSHConnectionManager():
 
     @classmethod
     def new_parallel_ssh_client(cls, config, key_path=None) -> ParallelSSHClient:
+        print (config)
         hostnames = list(config.keys())
+        print(hostnames)
+        values= list(config.values())
+        print(values)
+        my_host_config = [HostConfig(user='gpuserver',port=22)]
+        print(my_host_config)
+        my_host_config = HostConfig(**config.values())
+        prin(my_host_config)
         try:
             if SSH.PROXY:
                 client = ParallelSSHClient(
                     hosts=hostnames,
-                    host_config=config,
+                    host_config=my_host_config,
                     pkey=key_path,
                     proxy_host=SSH.PROXY['proxy_host'],
                     proxy_user=SSH.PROXY['proxy_user'],
@@ -34,7 +43,7 @@ class SSHConnectionManager():
             else:
                 client = ParallelSSHClient(
                     hosts=hostnames,
-                    host_config=config,
+                    host_config=my_host_config,
                     timeout=SSH.TIMEOUT,
                     pkey=key_path,
                     num_retries=SSH.NUM_RETRIES
@@ -44,6 +53,7 @@ class SSHConnectionManager():
             return None
         else:
             return client
+
     def add_host(self, host_config: Dict):
         '''
         Appends a host (as hostname + config) directly into parallel ssh client instance.
@@ -72,10 +82,6 @@ class SSHConnectionManager():
         return self._connection_group
 
     @staticmethod
-
-
-
-
     def test_all_connections(config, key_path=None):
         '''
         It checks if all of the defined hosts are accessible via SSH.
@@ -95,23 +101,23 @@ class SSHConnectionManager():
         command = 'uname'
         message_template = '[{icon}] {host:20} {msg}'
         output = connections.run_command(command, stop_on_errors=False)
+        print(output)
         connections.join(output)
 
         # 3. Log appropriate messages based on command's result
         num_failed = 0
-
+        #for host, host_output in output.items():
         for host_output in output:
-            host = host_output.host  # This assumes `host_output` has a `host` attribute
             if host_output.exception is None and host_output.exit_code == 0:
                 log.info(message_template.format(
                     icon='✔',
-                    host=host,
+                    host=host_output.host,
                     msg='OK'))
             else:
                 num_failed += 1
                 error_message = 'FAILED (exit code: {}, exception: {})'.format(
                     host_output.exit_code,
-                    host_output.exception.__class__.__name__ if host_output.exception else "None")
+                    host_output.exception.__class__.__name__)
                 log.critical(message_template.format(
                     icon='✘',
                     host=host,

@@ -20,3 +20,6 @@ build/
 
 # config
 tensorhive/app/web/dist/static/config.json
+
+#myenv
+myenv/

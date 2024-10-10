@@ -77,29 +77,41 @@ class GPUMonitor(Monitor):
         output = group_connection.run_command(self.composed_query_command, stop_on_errors=False)
         group_connection.join(output)
 
-        for host, host_out in output.items():
-            if host_out.exit_code == 0:
+        #for host, host_out in output.items():
+        for host_output in output:
+            if host_output.exit_code == 0:
                 # Command executed successfully
-                metrics = NvidiaSmiParser.parse_query_gpu_stdout(host_out.stdout)
+                metrics = NvidiaSmiParser.parse_query_gpu_stdout(host_output.stdout)
             else:
                 # Command execution failed
-                if host_out.exit_code:
-                    log.error('nvidia-smi failed with {} exit code on {}'.format(host_out.exit_code, host))
-                elif host_out.exception:
-                    log.error('nvidia-smi raised {} on {}'.format(host_out.exception.__class__.__name__, host))
+                if host_output.exit_code:
+                    log.error('nvidia-smi failed with {} exit code on {}'.format(host_output.exit_code, host_output.host))
+                elif host_output.exception:
+                    log.error('nvidia-smi raised {} on {}'.format(host_output.exception.__class__.__name__, host_output.host))
                 metrics = None
 
-            infrastructure_manager.infrastructure[host]['GPU'] = metrics
+            infrastructure_manager.infrastructure[host_output.host]['GPU'] = metrics
 
     def _get_process_owner(self, pid: int, hostname: str, connection) -> str:
         '''Use single-host connection to acquire process owner using `ps`'''
         command = 'ps --no-headers -o user {}'.format(pid)
-        connection = connection.host_clients[hostname]
+        
+        my_key = None
+        for key in connection._host_clients.keys():
+            if key[1] == hostname:
+                my_key = key
+                break
+        if my_key is None:
+            print(f'hostname {hostname} not found in connections')
+            return None
+        connection = connection._host_clients[my_key]
+        #connection = connection.host_clients[hostname]
+        #connection = connection.hosts[hostname]
 
         output = connection.run_command(command)
-        _, hostname, stdout, stderr, _ = output
 
-        result = list(stdout)
+        # Extract output for the specific host
+        result = list(output.stdout)
         if not result:
             # Empty output -> Process with such pid does not exist
             return None
@@ -178,18 +190,18 @@ class GPUMonitor(Monitor):
         group_connection.join(output)
 
         result = {}
-        for host, host_out in output.items():
-            if host_out.exit_code == 0:
-                processes = NvidiaSmiParser.parse_pmon_stdout(host_out.stdout)
+        for host_output in output:
+            if host_output.exit_code == 0:
+                processes = NvidiaSmiParser.parse_pmon_stdout(host_output.stdout)
                 # Find process owner for each process
                 for process in processes:
-                    process['owner'] = self._get_process_owner(process['pid'], host, group_connection)
+                    process['owner'] = self._get_process_owner(process['pid'], host_output.host, group_connection)
             else:
                 # Possible reasons:
                 # - nvidia-smi not installed
                 # - could not connect to host
                 processes = None
-            result[host] = processes
+            result[host_output.host] = processes
         return result
 
     def _update_processes(self, infrastructure_manager, processes: Dict):
